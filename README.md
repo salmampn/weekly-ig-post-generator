@@ -37,3 +37,13 @@ Early versions generated the image prompt directly from the raw RSS headline, wh
 
 - Deduplication relies on n8n's workflow static data, which persists reliably when the workflow is **Active** and run via its own trigger. Manual test executions in the editor may not always save state the same way.
 - The RSS source can be swapped for any other real-estate/property news feed by changing the URL in `Read Property News`.
+
+## Lessons Learned
+
+**Image prompts need real context, not just the headline.** The first version of this workflow generated the post image directly from the raw RSS headline (`topHeadline`). Headlines are often vague or clickbait-style (e.g. "Rates Just Did Something Nobody Expected"), which gave the image model almost nothing concrete to work with and produced generic, mismatched visuals. The fix was adding a **Generate Image Prompt** step that reads the *finished caption* and the *article summary* — not just the title — and writes a grounded visual scene description before the image model ever runs.
+
+**Manual testing can make working logic look broken.** The dedup nodes (`Filter Out Used Articles` / `Mark Article As Used`) rely on n8n's built-in workflow static data (`$getWorkflowStaticData`). During development, repeated manual "Execute Workflow" runs in the editor — and re-importing/pasting the workflow JSON while iterating on nodes — reset that stored state, making it look like articles were repeating when the dedup code itself was logically correct. Static data persists reliably when the workflow is **Active** and running off its real schedule trigger, which is the environment this logic was actually designed for.
+
+**Known limitation:** there's currently no validation step between the image-prompt agent and the image generator. If that agent ever returns an empty or off-topic description, the image node will still run on it silently with no fallback or retry.
+
+**If rebuilding:** swap the static-data-based dedup for a lightweight external store (e.g. a Notion database or Google Sheet row per used article). Static data is fragile during active development since it resets on heavy edits — an external store would survive iteration on the workflow itself.
