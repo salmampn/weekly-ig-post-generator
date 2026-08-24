@@ -1,0 +1,379 @@
+{
+  "name": "v4_Weekly IG Post Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "8c358184-377e-44de-a9fb-5ab5c86bb39c",
+      "name": "Every Monday 9am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -896,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.housingwire.com/feed/",
+        "options": {}
+      },
+      "id": "d0ff10d7-e2fe-4a4f-a695-2b1daf99b34d",
+      "name": "Read Property News",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -672,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const newsItems = $input.all();\nconst staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.usedLinks)) {\n  staticData.usedLinks = [];\n}\nconst usedLinks = new Set(staticData.usedLinks);\n\nconst unused = newsItems.filter(it => {\n  const link = (it.json && (it.json.link || it.json.guid)) || '';\n  return link && !usedLinks.has(link.trim());\n});\n\nif (unused.length === 0) {\n  throw new Error('No unused articles found this week — all fetched RSS items have already been used. Add a new feed or wait for fresh articles.');\n}\n\nunused.sort((a, b) => {\n  const da = new Date((a.json && (a.json.isoDate || a.json.pubDate)) || 0).getTime();\n  const db = new Date((b.json && (b.json.isoDate || b.json.pubDate)) || 0).getTime();\n  return db - da;\n});\n\nreturn unused;"
+      },
+      "id": "2baaa9da-83cc-4e10-a17a-bd75d4591469",
+      "name": "Filter Out Used Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst chosen = items[0];\nconst j = chosen.json || {};\nconst title = j.title || 'Untitled';\nconst link = j.link || j.guid || '';\nconst summary = j.contentSnippet || j.content || j.summary || '';\n\nreturn [{\n  json: {\n    newsBlock: title + (summary ? ('\\n' + summary) : '') + (link ? ('\\nSource: ' + link) : ''),\n    topHeadline: title,\n    articleLink: link,\n  },\n}];"
+      },
+      "id": "13360588-7799-45dc-b796-414c33eb86d4",
+      "name": "Pick One Article",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write an engaging Instagram caption for this single property/real-estate news article. Craft a scroll-stopping hook for the first line (under 100 characters, ideally a bold claim, surprising stat, or curiosity-driven question — NOT a flat restatement of the headline), then build the story, and end with the source link exactly as given below on its own line before the hashtags.\n\n{{ $json.newsBlock }}",
+        "options": {
+          "systemMessage": "You are a social media manager for a real estate brand. Write ONE engaging Instagram caption (max ~120 words) based ONLY on the single news article provided above — do not reference, summarize, or blend in any other articles or topics not present in this input.\n\nStructure the caption in this exact order:\n1. Hook (first line, under 100 characters): a bold statement, surprising stat, or curiosity-driven question that stops the scroll. Never just restate the headline verbatim — rephrase it to create intrigue. Instagram truncates captions at ~125 characters, so the hook must land its point before that cutoff.\n2. Body (4-6 short lines, not just 1-2): expand on the key news with a bit more context — who's involved, what changed, why it matters, and include the key quote from the article if present. Friendly and professional tone, emojis used sparingly (max 2-3 total in the whole caption).\n3. A short call-to-action line inviting the reader to think or engage (e.g. a question back to the audience).\n4. On its own line: 'Read more: ' followed by the exact source link provided in the input. Do not alter, shorten, or omit the link.\n5. Final line: exactly 3-5 relevant, specific hashtags (e.g. #RealEstate #MortgageNews). Do not exceed 5 — Instagram's 2026 best practice caps effective hashtag use at 5.\n\nOutput only the caption text, no preamble, no markdown formatting."
+        }
+      },
+      "id": "6f8b4696-e532-44b3-9006-daf74d19dee2",
+      "name": "Write Instagram Caption",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        80,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "eb2e35f5-2ecb-4188-8bcf-975d2b0f6f31",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        368
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "2HWCdUeiFRNXndSe",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-image-1-mini"
+        },
+        "prompt": "=A clean, modern, professional real-estate themed square image depicting: {{ $('Generate Image Prompt').item.json.output }}. Bright, editorial photography style, no text overlays.",
+        "options": {}
+      },
+      "id": "1c0a0d4b-2144-43ff-9780-34aa8204deeb",
+      "name": "Generate Post Image",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        688,
+        144
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "2HWCdUeiFRNXndSe",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "salmonteea@gmail.com",
+        "subject": "=Weekly IG Post Draft — {{ $now.toFormat(\"MMMM d, yyyy\") }}",
+        "message": "=<h2>Your weekly Instagram post draft</h2><p>Based on article: <a href=\"{{ $('Pick One Article').item.json.articleLink }}\">{{ $('Pick One Article').item.json.topHeadline }}</a></p><p>Attached image is ready to use. Suggested caption below:</p><hr><pre style=\"white-space:pre-wrap;font-family:inherit;\">{{ $('Write Instagram Caption').item.json.output }}</pre><hr><p><em>Based on a single property news article for the week.</em></p>",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
+      },
+      "id": "ef9f3fed-dca9-4a15-afa0-dbfe57592893",
+      "name": "Email Draft Post",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1104,
+        144
+      ],
+      "webhookId": "a3f25312-c651-468c-8828-5b075a429e91",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Onkv6AdwtOQc05Yy",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.usedLinks)) {\n  staticData.usedLinks = [];\n}\n\nconst link = $('Pick One Article').item.json.articleLink;\nif (link && !staticData.usedLinks.includes(link)) {\n  staticData.usedLinks.push(link);\n}\n\nif (staticData.usedLinks.length > 200) {\n  staticData.usedLinks = staticData.usedLinks.slice(-200);\n}\n\nreturn [{ json: { markedUsed: link, totalTracked: staticData.usedLinks.length } }];"
+      },
+      "id": "d2d255b6-f000-4112-b240-f83ea86abaa3",
+      "name": "Mark Article As Used",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        144
+      ],
+      "notes": "Saves the used link into the workflow's built-in static data (no external DB needed). Persists across executions as long as the workflow itself isn't deleted/reset."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Based on this Instagram caption and article summary, write a short, vivid visual description (2-3 sentences) for an image generator. Focus on concrete scene elements (setting, objects, mood, lighting) that match the actual story — not just the headline.\n\nCaption:\n{{ $('Write Instagram Caption').item.json.output }}\n\nArticle context:\n{{ $('Pick One Article').item.json.newsBlock }}",
+        "options": {
+          "systemMessage": "You are a visual prompt writer for an AI image generator. Read the caption and article context, identify the SPECIFIC subject matter (e.g. mortgage rates, new housing development, rental market, homebuyer struggles, luxury listings, etc.) and output ONLY a concise visual scene description (no headline restatement, no camera brand names, no text-in-image requests). Describe real, photographable elements relevant to that specific topic."
+        }
+      },
+      "id": "1010f7de-3a55-45bf-8a21-710bf3178569",
+      "name": "Generate Image Prompt",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        368,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "9a409420-9f64-44b2-a2c8-009f371702a8",
+      "name": "OpenAI Chat",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        400,
+        352
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "2HWCdUeiFRNXndSe",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every Monday 9am": {
+      "main": [
+        [
+          {
+            "node": "Read Property News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Property News": {
+      "main": [
+        [
+          {
+            "node": "Filter Out Used Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Out Used Articles": {
+      "main": [
+        [
+          {
+            "node": "Pick One Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick One Article": {
+      "main": [
+        [
+          {
+            "node": "Write Instagram Caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Instagram Caption": {
+      "main": [
+        [
+          {
+            "node": "Generate Image Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Write Instagram Caption",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Post Image": {
+      "main": [
+        [
+          {
+            "node": "Email Draft Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Draft Post": {
+      "main": [
+        [
+          {
+            "node": "Mark Article As Used",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Image Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Post Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Image Prompt",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0e290483-988e-427c-bcc6-a276d60221e7",
+  "meta": {
+    "instanceId": "513535f8d9275437db26c67ebbc1b090029c486d425ebaf675cf8bc19bd2d57c"
+  },
+  "nodeGroups": [
+    {
+      "id": "1a558371-8071-4208-974c-d56f0128dc9c",
+      "name": "Ingest & dedupe news",
+      "nodeIds": [
+        "d0ff10d7-e2fe-4a4f-a695-2b1daf99b34d",
+        "2baaa9da-83cc-4e10-a17a-bd75d4591469",
+        "13360588-7799-45dc-b796-414c33eb86d4"
+      ],
+      "description": "Read the RSS feed, remove articles already used before (tracked in workflow static data), and pick exactly ONE fresh unused article, including it"
+    },
+    {
+      "id": "aac9a44b-b99c-4c93-b529-b6245fc234f8",
+      "name": "Deliver draft & record usage",
+      "nodeIds": [
+        "ef9f3fed-dca9-4a15-afa0-dbfe57592893",
+        "d2d255b6-f000-4112-b240-f83ea86abaa3"
+      ],
+      "description": "Email the caption and image for review, then record the article link in workflow static data so it's excluded from future runs."
+    },
+    {
+      "id": "cacd2b35-18fe-4c69-bc28-f85ed94c5708",
+      "nodeIds": [
+        "6f8b4696-e532-44b3-9006-daf74d19dee2",
+        "eb2e35f5-2ecb-4188-8bcf-975d2b0f6f31",
+        "1c0a0d4b-2144-43ff-9780-34aa8204deeb",
+        "1010f7de-3a55-45bf-8a21-710bf3178569",
+        "9a409420-9f64-44b2-a2c8-009f371702a8"
+      ],
+      "name": "Generate caption & image",
+      "description": "AI writes a longer, scroll-stopping caption with a sharp hook and fuller body, cites the source name (not a raw URL), caps hashtags at 5, and gen"
+    }
+  ],
+  "id": "lRpKLjhrmxPBkmsB",
+  "tags": []
+}
